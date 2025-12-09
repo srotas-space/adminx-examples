@@ -1,37 +1,72 @@
-// src/admin/resources/user_resource.rs
+// /test/src/admin/resources/notification_resource.rs
 use crate::dbs::mongo::get_collection;
 use adminx::AdmixResource;
 use async_trait::async_trait;
 use mongodb::{Collection, bson::Document};
 use serde_json::{json, Value};
-
+use crate::models::config_model::{ConfigStatus, ConfigDataType};
+use convert_case::{Casing, Case};
+use strum::IntoEnumIterator;
 
 #[derive(Debug, Clone)]
-pub struct UserResource;
+pub struct ConfigResource;
+
+pub struct ConfigOptions;
+
+impl ConfigOptions {
+    pub fn statuses_options() -> Vec<Value> {
+        let mut options = vec![];
+        for variant in ConfigStatus::iter() {
+            let value = serde_json::to_string(&variant).unwrap().replace('"', "");
+            let label = value.to_case(Case::Title);
+            options.push(json!({ "value": value, "label": label }));
+        }
+        options
+    }
+
+    pub fn data_types_options() -> Vec<Value>{
+        let mut options = vec![];
+        for variant in ConfigDataType::iter() {
+            let value = serde_json::to_string(&variant).unwrap().replace('"', "");
+            let label = value.to_case(Case::Title);
+            options.push(json!({ "value": value, "label": label }));
+        }
+        options
+    }
+
+
+    pub fn boolean_options() -> Vec<Value> {
+        vec![
+            json!({ "value": "true",  "label": "True"  }),
+            json!({ "value": "false", "label": "False" }),
+        ]
+    }
+}
+
 
 #[async_trait]
-impl AdmixResource for UserResource {
+impl AdmixResource for ConfigResource {
     // ===========================
     // REQUIRED IMPLEMENTATIONS
     // ===========================
     fn new() -> Self {
-        UserResource
+        ConfigResource
     }
 
     fn resource_name(&self) -> &'static str {
-        "Users"
+        "configs"
     }
 
     fn base_path(&self) -> &'static str {
-        "users"
+        "configs"
     }
 
     fn collection_name(&self) -> &'static str {
-        "users"
+        "configs"
     }
 
     fn get_collection(&self) -> Collection<Document> {
-        get_collection::<Document>("users")
+        get_collection::<Document>("configs")
     }
 
     fn clone_box(&self) -> Box<dyn AdmixResource> {
@@ -39,11 +74,11 @@ impl AdmixResource for UserResource {
     }
 
     fn menu_group(&self) -> Option<&'static str> {
-        Some("Management")
+        Some("Settings")
     }
 
     fn menu(&self) -> &'static str {
-        "Users"
+        "Configs"
     }
 
     // ===========================
@@ -53,33 +88,70 @@ impl AdmixResource for UserResource {
         vec!["admin".to_string(), "superadmin".to_string()]
     }
 
+
     fn permit_keys(&self) -> Vec<&'static str> {
-        vec!["name", "email"]
+        vec!["key", "data", "data_type", "status", "deleted"]
     }
 
     // ===========================
     // UI STRUCTURE OVERRIDES (Optional)
     // ===========================
+
+    // {
+    //   "field_type": "boolean",      // Yes/No radio buttons
+    //   "field_type": "editor_text",  // Simple text editor
+    //   "field_type": "editor_html",  // HTML-only editor  
+    //   "field_type": "editor_json",  // JSON-only editor
+    //   "field_type": "editor"        // Combined Text/HTML/JSON editor
+    // }
+
+
     fn form_structure(&self) -> Option<Value> {
         // Using manual form structure for better control
         Some(json!({
             "groups": [
                 {
-                    "title": "User Details",
+                    "title": "Details",
                     "fields": [
                         {
-                            "name": "name",
+                            "name": "key",
                             "field_type": "text",
-                            "label": "Full Name",
+                            "label": "key",
                             "value": "",
+                            "required": true,
                             "options": null
                         },
                         {
-                            "name": "email",
-                            "field_type": "email", 
-                            "label": "Email Address",
+                            "name": "data",
+                            "field_type": "editor", 
+                            "label": "data",
                             "value": "",
+                            "required": true,
                             "options": null
+                        },
+                        {
+                            "name": "data_type",
+                            "field_type": "select", 
+                            "label": "data_type",
+                            "value": "",
+                            "required": true,
+                            "options": ConfigOptions::data_types_options()
+                        },
+                        {
+                            "name": "status",
+                            "field_type": "select", 
+                            "label": "status",
+                            "value": "",
+                            "required": true,
+                            "options": ConfigOptions::statuses_options()
+                        },
+                        {
+                            "name": "deleted",
+                            "field_type": "boolean", 
+                            "label": "deleted",
+                            "value": "",
+                            "required": true,
+                            "options": ConfigOptions::boolean_options()
                         }
                     ]
                 }
@@ -91,18 +163,34 @@ impl AdmixResource for UserResource {
         Some(json!({
             "columns": [
                 {
-                    "field": "name",
-                    "label": "Name",
+                    "field": "key",
+                    "label": "key",
                     "sortable": true
                 },
                 {
-                    "field": "email", 
-                    "label": "Email",
+                    "field": "data_type", 
+                    "label": "data_type",
+                    "sortable": true
+                },
+                {
+                    "field": "status", 
+                    "label": "status",
+                    "sortable": true
+                },
+                {
+                    "field": "deleted", 
+                    "label": "deleted",
                     "sortable": true
                 },
                 {
                     "field": "created_at",
                     "label": "Created At",
+                    "type": "datetime",
+                    "sortable": true
+                },
+                {
+                    "field": "updated_at",
+                    "label": "Updated At",
                     "type": "datetime",
                     "sortable": true
                 }
@@ -115,24 +203,40 @@ impl AdmixResource for UserResource {
         Some(json!({
             "sections": [
                 {
-                    "title": "User Information",
+                    "title": "Details",
                     "fields": [
                         {
-                            "field": "name",
-                            "label": "Name"
+                            "field": "key",
+                            "label": "key"
                         },
                         {
-                            "field": "email",
-                            "label": "Email"
+                            "field": "data_type",
+                            "label": "data_type"
                         }
                     ]
                 },
                 {
-                    "title": "System Information",
+                    "title": "More Details",
                     "fields": [
                         {
                             "field": "_id",
-                            "label": "User ID"
+                            "label": "id"
+                        },
+                        {
+                            "field": "status",
+                            "label": "status",
+                            "type": "boolean"
+                        },
+                        {
+                            "field": "data",
+                            "label": "data",
+                            "type": "datetime"
+                        },
+                        
+                        {
+                            "field": "deleted",
+                            "label": "deleted",
+                            "type": "boolean"
                         },
                         {
                             "field": "created_at",
@@ -157,32 +261,18 @@ impl AdmixResource for UserResource {
                 // TEXT FILTERS (like your example)
                 // ===========================
                 {
-                    "field": "name",
+                    "field": "key",
                     "type": "text",
-                    "label": "Name",
-                    "placeholder": "Search by name..."
+                    "label": "key",
+                    "placeholder": ""
                 },
                 {
-                    "field": "email",
-                    "type": "text", 
-                    "label": "Email",
-                    "placeholder": "Search by email..."
+                    "field": "status",
+                    "type": "select", 
+                    "label": "status",
+                    "placeholder": "",
+                    "options": ConfigOptions::statuses_options()
                 },
-                
-                // ===========================
-                // SELECT/DROPDOWN FILTERS
-                // ===========================
-                // {
-                //     "field": "status",
-                //     "type": "select",
-                //     "label": "Status",
-                //     "options": [
-                //         {"value": "", "label": "All Statuses"},
-                //         {"value": "active", "label": "Active"},
-                //         {"value": "inactive", "label": "Inactive"},
-                //         {"value": "suspended", "label": "Suspended"}
-                //     ]
-                // },
                 
                 // ===========================
                 // DATE RANGE FILTERS
@@ -191,28 +281,24 @@ impl AdmixResource for UserResource {
                     "field": "created_at",
                     "type": "date_range",
                     "label": "Created Date",
-                    "placeholder": "Select date range..."
+                    "placeholder": ""
                 },
                 {
                     "field": "updated_at",
                     "type": "date_range",
                     "label": "Updated Date",
-                    "placeholder": "Select date range..."
+                    "placeholder": ""
                 },
                 
                 // ===========================
                 // BOOLEAN/CHECKBOX FILTERS
                 // ===========================
-                // {
-                //     "field": "deleted",
-                //     "type": "boolean",
-                //     "label": "Email Verified",
-                //     "options": [
-                //         {"value": "", "label": "All"},
-                //         {"value": "true", "label": "Verified"},
-                //         {"value": "false", "label": "Not Verified"}
-                //     ]
-                // },
+                {
+                    "field": "deleted",
+                    "type": "boolean",
+                    "label": "Deleted",
+                    "options": ConfigOptions::boolean_options()
+                },
                 
                 // ===========================
                 // NUMBER RANGE FILTERS

@@ -1,3 +1,5 @@
+// test/src/qrushes/jobs/notify_user.rs
+
 use qrush::job::Job;
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
@@ -26,6 +28,7 @@ impl Job for NotifyUser {
     }
 
     async fn perform(&self) -> Result<()> {
+        // Your code here
         println!("📬 Performing NotifyUser: '{}' to user {}", self.message, self.user_id);
         Ok(())
     }
