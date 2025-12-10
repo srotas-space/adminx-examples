@@ -1,10 +1,11 @@
 // /test/src/admin/resources/notification_resource.rs
-use crate::dbs::mongo::get_collection;
+use actix_web::HttpResponse;
+use crate::db::mongo::get_collection;
 use adminx::AdmixResource;
 use async_trait::async_trait;
 use mongodb::{Collection, bson::Document};
 use serde_json::{json, Value};
-use crate::models::config_model::{ConfigStatus, ConfigDataType};
+use crate::models::config::{ConfigStatus, ConfigDataType};
 use convert_case::{Casing, Case};
 use strum::IntoEnumIterator;
 
@@ -299,31 +300,6 @@ impl AdmixResource for ConfigResource {
                     "label": "Deleted",
                     "options": ConfigOptions::boolean_options()
                 },
-                
-                // ===========================
-                // NUMBER RANGE FILTERS
-                // ===========================
-                // {
-                //     "field": "age",
-                //     "type": "number_range",
-                //     "label": "Age Range",
-                //     "min_placeholder": "Min age",
-                //     "max_placeholder": "Max age"
-                // },
-                
-                // ===========================
-                // MULTI-SELECT FILTERS
-                // ===========================
-                // {
-                //     "field": "tags",
-                //     "type": "multi_select",
-                //     "label": "Tags",
-                //     "options": [
-                //         {"value": "premium", "label": "Premium User"},
-                //         {"value": "beta", "label": "Beta Tester"},
-                //         {"value": "vip", "label": "VIP Member"}
-                //     ]
-                // }
             ]
         }))
     }
@@ -336,61 +312,85 @@ impl AdmixResource for ConfigResource {
             adminx::actions::CustomAction {
                 name: "ban",
                 method: "POST",
-                handler: |req, _path, _body| {
-                    let user_id = req.match_info().get("id").unwrap_or("unknown").to_string();
+                handler: |req, _path, body| {
+                    let user_id = req
+                        .match_info()
+                        .get("id")
+                        .unwrap_or("unknown")
+                        .to_string(); // own it
 
+                    // Extract values from `body` but convert them to owned types
+                    let reason: String = body
+                        .get("reason")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+
+                    let duration: i64 = body
+                        .get("duration")
+                        .and_then(|v| v.as_i64())
+                        .unwrap_or(0);
+
+                    let ban_type: String = body
+                        .get("ban_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("temporary")
+                        .to_string();
+
+                    // Now we move only owned data into the future
                     Box::pin(async move {
-                        tracing::info!("Banning user: {}", user_id);
-                        
-                        // TODO: Add your actual ban logic here
-                        // For example, update a status field in the database
-                        
-                        actix_web::HttpResponse::Ok().json(serde_json::json!({
+                        tracing::info!(
+                            "Banning user {}: reason={}, duration={}, type={}",
+                            user_id,
+                            reason,
+                            duration,
+                            ban_type
+                        );
+
+                        // TODO: add real ban logic (DB update, etc.)
+
+                        HttpResponse::Ok().json(json!({
                             "success": true,
-                            "message": format!("User {} has been banned", user_id)
+                            "message": format!("User {} has been banned", user_id),
+                            "user_id": user_id,
+                            "reason": reason,
+                            "duration": duration,
+                            "ban_type": ban_type,
                         }))
                     })
                 },
+                ui: Some(adminx::actions::ActionUi {
+                    label: Some("Ban User".into()),
+                    confirm: Some("Are you sure you want to ban this user?".into()),
+                    fields: Some(vec![
+                        adminx::actions::ActionField {
+                            name: "reason".into(),
+                            label: Some("Reason".into()),
+                            field_type: "text".into(),
+                            required: Some(true),
+                            options: None,
+                        },
+                        adminx::actions::ActionField {
+                            name: "duration".into(),
+                            label: Some("Duration (days)".into()),
+                            field_type: "number".into(),
+                            required: Some(false),
+                            options: None,
+                        },
+                        adminx::actions::ActionField {
+                            name: "ban_type".into(),
+                            label: Some("Ban Type".into()),
+                            field_type: "select".into(),
+                            required: Some(true),
+                            options: Some(vec![
+                                json!("temporary"),
+                                json!("permanent"),
+                            ]),
+                        },
+                    ]),
+                }),
             },
         ]
     }
 
-    // ===========================
-    // CRUD OPERATIONS - Using defaults with optional overrides
-    // ===========================
-    
-    // All CRUD operations (list, get, create, update, delete) will use 
-    // the default implementations from the trait automatically!
-    
-    // Only override if you need custom behavior, for example:
-    
-    /*
-    fn create(&self, req: &HttpRequest, payload: Value) -> futures::future::BoxFuture<'static, HttpResponse> {
-        use futures::FutureExt;
-        
-        // Example: Custom validation
-        if let Value::Object(ref map) = payload {
-            if let Some(email) = map.get("email").and_then(|v| v.as_str()) {
-                if !email.contains('@') {
-                    return Box::pin(async move {
-                        HttpResponse::BadRequest().json(json!({
-                            "error": "Invalid email format"
-                        }))
-                    });
-                }
-            }
-        }
-        
-        // If validation passes, call the default implementation
-        // You would need to manually call the default trait logic here
-        // or restructure this to work with the trait's default implementation
-        
-        Box::pin(async move {
-            HttpResponse::Created().json(json!({
-                "success": true,
-                "message": "User created with custom validation"
-            }))
-        })
-    }
-    */
 }

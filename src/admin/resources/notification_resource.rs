@@ -1,5 +1,5 @@
 // src/admin/resources/notification_resource.rs - Fixed Version
-use crate::dbs::mongo::get_collection;
+use crate::db::mongo::get_collection;
 use adminx::AdmixResource;
 use async_trait::async_trait;
 use mongodb::{Collection, bson::Document};
@@ -38,7 +38,7 @@ impl AdmixResource for NotificationResource {
     }
 
     fn menu_group(&self) -> Option<&'static str> {
-        Some("Management")
+        Some("Master")
     }
 
     fn menu(&self) -> &'static str {
@@ -51,7 +51,7 @@ impl AdmixResource for NotificationResource {
 
     // FIXED: Make permit_keys match the actual fields you want to use
     fn permit_keys(&self) -> Vec<&'static str> {
-        vec!["title", "description"]
+        vec!["title", "message"]
     }
 
     // ===========================
@@ -72,7 +72,7 @@ impl AdmixResource for NotificationResource {
                             "options": null
                         },
                         {
-                            "name": "description",
+                            "name": "message",
                             "field_type": "textarea", 
                             "label": "Description",
                             "value": "",
@@ -94,8 +94,8 @@ impl AdmixResource for NotificationResource {
                     "sortable": true
                 },
                 {
-                    "field": "description", 
-                    "label": "Description",
+                    "field": "message", 
+                    "label": "Message",
                     "sortable": true
                 },
                 {
@@ -126,7 +126,7 @@ impl AdmixResource for NotificationResource {
                             "label": "Title"
                         },
                         {
-                            "field": "description",
+                            "field": "message",
                             "label": "Description"
                         }
                     ]
@@ -166,12 +166,6 @@ impl AdmixResource for NotificationResource {
                     "label": "Title",
                     "placeholder": "Search by title..."
                 },
-                {
-                    "field": "description",
-                    "type": "text", 
-                    "label": "Description",
-                    "placeholder": "Search by description..."
-                },
                 // ===========================
                 // DATE RANGE FILTERS
                 // ===========================
@@ -189,32 +183,5 @@ impl AdmixResource for NotificationResource {
                 }
             ]
         }))
-    }
-
-    // ===========================
-    // CUSTOM ACTIONS (Optional)
-    // ===========================
-    fn custom_actions(&self) -> Vec<adminx::actions::CustomAction> {
-        vec![
-            adminx::actions::CustomAction {
-                name: "archive",
-                method: "POST",
-                handler: |req, _path, _body| {
-                    let notification_id = req.match_info().get("id").unwrap_or("unknown").to_string();
-
-                    Box::pin(async move {
-                        tracing::info!("Archiving notification: {}", notification_id);
-                        
-                        // TODO: Add your actual archive logic here
-                        // For example, update a status field in the database
-                        
-                        actix_web::HttpResponse::Ok().json(serde_json::json!({
-                            "success": true,
-                            "message": format!("Notification {} has been archived", notification_id)
-                        }))
-                    })
-                },
-            },
-        ]
     }
 }

@@ -1,4 +1,4 @@
-// test/src/admin/initializer.rs
+// /Users/xsm/Documents/workspace/XARD/xard-be/src/admin/initializer.rs
 use mongodb::Database;
 use adminx::{
     adminx_initialize, 
@@ -10,13 +10,15 @@ use adminx::{
     AdmixResource,
     AdminxConfig,
 };
-use actix_session::SessionMiddleware;
-
+use actix_session::{SessionMiddleware, storage::CookieSessionStore};
 // Import your resources
 use crate::admin::resources::user_resource::UserResource;
 use crate::admin::resources::notification_resource::NotificationResource;
 use crate::admin::resources::config_resource::ConfigResource;
-use crate::admin::resources::image_resource::ImageResource;
+use crate::admin::resources::picture_resource::PictureResource;
+use crate::admin::resources::contact_resource::ContactResource;
+use crate::admin::resources::event_attendee_resource::EventAttendeeResource;
+use crate::admin::resources::event_resource::EventResource;
 
 pub struct AdminxInitializer;
 
@@ -50,7 +52,10 @@ impl AdminxInitializer {
         register_resource(Box::new(UserResource::new()));
         register_resource(Box::new(NotificationResource::new()));
         register_resource(Box::new(ConfigResource::new()));
-        register_resource(Box::new(ImageResource::new()));
+        register_resource(Box::new(PictureResource::new()));
+        register_resource(Box::new(ContactResource::new()));
+        register_resource(Box::new(EventAttendeeResource::new()));
+        register_resource(Box::new(EventResource::new()));
         println!("All resources registered successfully!");
     }
     
@@ -68,7 +73,8 @@ impl AdminxInitializer {
     }
     
     /// Get the AdminX session middleware
-    pub fn get_session_middleware(config: &AdminxConfig) -> SessionMiddleware<impl actix_session::storage::SessionStore> {
+    pub fn get_session_middleware(config: &AdminxConfig)-> SessionMiddleware<CookieSessionStore> {
+    // pub fn get_session_middleware(config: &AdminxConfig) -> SessionMiddleware<impl actix_session::storage::SessionStore> {
         get_adminx_session_middleware(config)
     }
     

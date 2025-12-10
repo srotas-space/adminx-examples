@@ -1,89 +1,84 @@
-// test/src/main.rs
-use actix_web::{web, App, HttpServer, HttpResponse, Responder, middleware::Logger};
-use dotenv::dotenv;
-use std::env;
-use crate::dbs::mongo::init_mongo_client;
-use crate::admin::initializer::AdminxInitializer;
-use crate::qrushes::qrush_integrated::QrushIntegrated;
-use crate::services::data_service::DataService;
-use crate::srotas::initialize::SrotasVector;
-use crate::srotas::service as srotas_service;
-
-use debugx::{debugx, debugx_json};
-
-mod dbs;
-mod qrushes;
-mod admin;
+// src/main.rs
+mod db;
 mod models;
-mod structs;
 mod services;
-mod utils;
-mod srotas;
+mod config;
+mod libs;
+mod errors;
+mod utilities;
+mod enums;
+mod admin;
+mod macros;
+mod requests;
+
+
+use dotenv::dotenv;
+use dotenv::from_filename;
+use std::env;
+use actix_web::{web, guard, App, HttpServer, Responder, HttpResponse, middleware::Logger};
+use tracing_actix_web::TracingLogger;
+use db::mongo::init_mongo_client;
+use mongodb::Database;
+use actix_web::dev::HttpServiceFactory;
+use log::{info, error};
+use env_logger::Env;
+use actix_web_prom::PrometheusMetricsBuilder;
+use actix_files::Files;
+use crate::services::redis_service::init_redis;
+use crate::admin::initializer::AdminxInitializer;
 
 
 
 async fn health_check() -> impl Responder {
-    HttpResponse::Ok().body("Test App Backend is Running!")
+    HttpResponse::Ok().body("Xard Backend is Running")
 }
 
 
-async fn test_queue() -> impl Responder {
-    DataService::create_record("127", "Snm").await;
-    HttpResponse::Ok().body("test queue!")
+async fn not_found() -> impl Responder {
+    HttpResponse::NotFound().body("404 - Route Not Found")
 }
-
 
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    dotenv().ok();
+    // Load environment configuration
+    crate::config::env_vars::load_environment();
     
-    println!("🔧 Initializing database connection...");
-    let db = init_mongo_client().await;
+    // Your application setup here...
+    println!("Starting application in {} mode", crate::config::env_vars::get_env());
     
+
+    // 🔹 Initialize `env_logger` for debugging
+    env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
+    info!("Logging Initialized");
+
+    let prometheus = PrometheusMetricsBuilder::new("api")
+        .endpoint("/metrics") // Expose Prometheus metrics at /metrics
+        .build()
+        .unwrap();
+
+    // Initialize Redis and Wrap in `web::Data`
+    init_redis().await;
+    
+    let db: Database = init_mongo_client().await;
+    let db_data = web::Data::new(db.clone()); // Wrap DB in `web::Data`
+    println!("Database initialized......");
+
     // Initialize AdminX components using the initializer
     let adminx_config = AdminxInitializer::initialize(db.clone()).await;
-    
-    // 🎯 GLOBAL Qrush initialization - happens ONCE for the entire application
-    println!("🌍 Initializing Qrush globally...");
-    QrushIntegrated::initialize(None).await;
-    println!("✅ Global Qrush initialization complete!");
-    
-    let server_address = env::var("SERVER_ADDRESS")
-        .unwrap_or_else(|_| "0.0.0.0:8083".to_string());
 
-    // 4) Srotas Vector global init (SDK + OVM)
-    println!("Initializing Srotas Vector (SDK/OVM)...");
-    let srotas_ovm = SrotasVector::initialize(None).await.expect("Srotas Vector initialization failed");
-    println!("✅ Srotas Vector ready at {}", std::env::var("SROTAS_BASE_URL").unwrap_or_else(|_| "http://localhost:3030".into()));
-    
-    // Print startup information
-    // AdminxInitializer::print_startup_info(&server_address);
-    
+    //Print a startup message
+    let server_address = env::var("SERVER_ADDRESS").unwrap_or_else(|_| "0.0.0.0:8082".to_string());
+    println!("🚀 Server started on: http://{}", server_address);
+
+
     HttpServer::new(move || {
-        println!("🔄 Creating new app instance...");
-        // 👷 Worker-specific setup - only enqueues jobs for this worker
-        // Uses the GLOBAL Qrush instance that was initialized above
-        let qrush_worker_config = QrushIntegrated::setup_worker_sync();
-        
         App::new()
             .app_data(web::Data::new(adminx_config.clone()))
-            .app_data(web::Data::new(qrush_worker_config))
-            // inject the Srotas Vector context
-            .app_data(web::Data::new(srotas_ovm.clone()))
-            // mount the OVM service under /srotas
-            .service(web::scope("/srotas").configure(srotas_service::configure))
             .wrap(Logger::default())
+            .wrap(prometheus.clone())
             .wrap(AdminxInitializer::get_session_middleware(&adminx_config))
             .service(AdminxInitializer::get_routes_service())
-            // Qrush metrics routes
-            .service(
-                web::scope("/qrush")
-                    .configure(|cfg| QrushIntegrated::configure_routes(cfg))
-            )
-            .route("/", web::get().to(health_check))
-            .route("/health", web::get().to(health_check))
-            .route("/test_queue", web::get().to(test_queue))
     })
     .bind(server_address)?
     .run()

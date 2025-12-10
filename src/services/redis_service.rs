@@ -21,9 +21,9 @@ pub async fn init_redis() {
     match Client::open(redis_url.clone()) {
         Ok(client) => {
             if REDIS_CONN.set(client).is_ok() {
-                info!("✅ Redis client initialized: {}", redis_url);
+                info!("Redis client initialized: {}", redis_url);
             } else {
-                error!("⚠️ Redis client was already initialized.");
+                error!("Redis client was already initialized.");
             }
         }
         Err(err) => {
@@ -32,17 +32,17 @@ pub async fn init_redis() {
     }
 }
 
-pub async fn get_redis_connection() -> Result<redis::aio::Connection, RedisError> {
+pub async fn get_redis_connection() -> Result<redis::aio::MultiplexedConnection, RedisError> {
     match REDIS_CONN.get() {
         Some(client) => {
-            info!("🔌 Attempting async connection to Redis...");
-            match client.get_async_connection().await {
+            info!("🔌 Attempting multiplexed async connection to Redis...");
+            match client.get_multiplexed_async_connection().await {
                 Ok(conn) => {
-                    info!("✅ Redis async connection established");
+                    info!("Redis multiplexed async connection established");
                     Ok(conn)
                 }
                 Err(e) => {
-                    error!("❌ Redis async connection failed: {:?}", e);
+                    error!("Redis multiplexed async connection failed: {:?}", e);
                     Err(e)
                 }
             }
@@ -116,7 +116,7 @@ pub async fn redis_get_list(key: &str) -> Result<Vec<String>, RedisError> {
     Ok(values)
 }
 /*------------------------------------------------------------
-/// START  Set a list of string values with expiry
+/// END  Set a list of string values with expiry
 ------------------------------------------------------------*/
 
 
@@ -161,5 +161,5 @@ pub async fn redis_get_queue<T: for<'de> Deserialize<'de>>(
     }
 }
 /*-------------------------------------------------------------
-START  Get queue
+END  Get queue
 --------------------------------------------------------------*/
