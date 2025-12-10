@@ -1,4 +1,4 @@
-# AdminX Actix + MongoDB Starter (Xard – Smart Contact Manager)
+# AdminX Actix + MongoDB Starter
 
 This repo is a **practical starter template** showing how to use  
 **[AdminX](https://crates.io/crates/adminx)** with:
@@ -10,7 +10,6 @@ This repo is a **practical starter template** showing how to use
 - 🗂️ **S3 (file uploads)**
 - 💾 **Redis (optional)**
 
-It powers a small “Smart Contact Manager” called **Xard**, with resources like:
 
 - Users
 - Contacts
@@ -130,7 +129,7 @@ pub async fn init_mongo_client() -> Database {
     let uri = env::var("MONGO_URI")
         .unwrap_or_else(|_| "mongodb://localhost:27017".to_string());
     let db_name = env::var("MONGO_DB")
-        .unwrap_or_else(|_| "xard".to_string());
+        .unwrap_or_else(|_| "srotas".to_string());
 
     let client = Client::with_uri_str(&uri)
         .await
@@ -635,7 +634,7 @@ Typical `.env` for this starter:
 ```env
 # Mongo
 MONGO_URI=mongodb://localhost:27017
-MONGO_DB=xard
+MONGO_DB=srotas
 
 # AdminX auth/session
 ADMINX_BASIC_AUTH="adminx:password"
@@ -647,7 +646,7 @@ ENVIRONMENT=development
 AWS_REGION=ap-south-1
 AWS_ACCESS_KEY_ID=xxxx
 AWS_SECRET_ACCESS_KEY=xxxx
-AWS_S3_BUCKET=xard-bucket
+AWS_S3_BUCKET=srotas-bucket
 
 # Logging
 RUST_LOG=info,actix_web=info,adminx=debug
